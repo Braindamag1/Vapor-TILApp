@@ -51,4 +51,28 @@ func routes(_ app: Application) throws {
                     .transform(to: .noContent)
             }
     }
+    // Filter
+    app.get("api","acronyms","search") { req->EventLoopFuture<[Acronym]> in
+        guard let searchTerm = req.query[String.self,at:"term"] else {
+            throw Abort(.badRequest)
+        }
+        return Acronym.query(on: req.db)
+            .group(.or) { or in
+                or.filter(\.$short == searchTerm)
+                or.filter(\.$long == searchTerm)
+            }.all()
+    }
+    
+    //first
+    app.get("api","acronyms","first") { req->EventLoopFuture<Acronym> in
+        Acronym.query(on: req.db)
+            .first()
+            .unwrap(or: Abort(.notFound))
+    }
+    //sort
+    app.get("api","acronyms","sorted") { req->EventLoopFuture<[Acronym]> in
+        Acronym.query(on: req.db)
+            .sort(\.$short,.ascending)
+            .all()
+    }
 }
