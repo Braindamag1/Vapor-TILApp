@@ -24,11 +24,16 @@ final class Acronym: Model {
     var user:User
     init() {}
 
+    @Siblings(through: AcronymCategoryPivot.self,
+              from: \.$acronym,
+              to: \.$category)
+    var categories: [Category]
+    
     init(id: UUID? = nil,
          short: String,
          long: String,
          userID:User.IDValue) {
-        //self.id = id
+        self.id = id
         self.short = short
         self.long = long
         self.$user.id = userID

@@ -13,9 +13,11 @@ struct AcronymsController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let acronymsRoutes = routes.grouped("api", "acronyms")
         acronymsRoutes.post(use: createHandler)
+        acronymsRoutes.post(":acronymID","categories",":categoryID", use: addCategoryHandler)
         acronymsRoutes.get(use: getAllHandler)
         acronymsRoutes.get(":acronymID", use: getHandler)
         acronymsRoutes.get(":acronymID", "user", use: getUserHandler)
+        acronymsRoutes.get(":acronymID","categories", use: getCategories)
         acronymsRoutes.put(":acronymID", use: updateHandler)
         acronymsRoutes.delete(":acronymID", use: deleteHandler)
         acronymsRoutes.get("search", use: searchHandler)
@@ -31,6 +33,23 @@ struct AcronymsController: RouteCollection {
         return acronym.save(on: req.db)
             .map { _ in
                 acronym
+            }
+    }
+    
+    func addCategoryHandler(_ req: Request)
+    -> EventLoopFuture<HTTPStatus> {
+        let categoryQuery = Category.find(req.parameters.get("categoryID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+        let acronymQuery = Acronym.find(req.parameters.get("acronymID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+
+        return acronymQuery
+            .and(categoryQuery)
+            .flatMap { acronym,category in
+                acronym
+                    .$categories
+                    .attach(category, on: req.db)
+                    .transform(to: .created)
             }
     }
 
@@ -55,6 +74,19 @@ struct AcronymsController: RouteCollection {
                 acronym.$user.get(on: req.db)
             }
     }
+    
+    
+    func getCategories(_ req:Request)
+    -> EventLoopFuture<[Category]> {
+        return Acronym.find(req.parameters.get("acronymID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+            .flatMap { acronym in
+                return acronym.$categories
+                    .query(on: req.db)
+                    .all()
+            }
+    }
+    
 
     // U- update - PUT
     func updateHandler(_ req: Request) throws
