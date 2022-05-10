@@ -20,6 +20,7 @@ struct AcronymsController: RouteCollection {
         acronymsRoutes.get(":acronymID","categories", use: getCategories)
         acronymsRoutes.put(":acronymID", use: updateHandler)
         acronymsRoutes.delete(":acronymID", use: deleteHandler)
+        acronymsRoutes.delete(":acronymID","categories",":categoryID", use: deleteCategoryHandler)
         acronymsRoutes.get("search", use: searchHandler)
         acronymsRoutes.get("first", use: getFirstHandler)
         acronymsRoutes.get("sorted", use: sortHandler)
@@ -35,7 +36,7 @@ struct AcronymsController: RouteCollection {
                 acronym
             }
     }
-    
+    // CreateRelationship should return EventLoopFuture<HTTPStatus>
     func addCategoryHandler(_ req: Request)
     -> EventLoopFuture<HTTPStatus> {
         let categoryQuery = Category.find(req.parameters.get("categoryID"), on: req.db)
@@ -112,6 +113,25 @@ struct AcronymsController: RouteCollection {
             .unwrap(or: Abort(.notFound))
             .flatMap { acronym in
                 acronym.delete(on: req.db)
+                    .transform(to: .noContent)
+            }
+    }
+    
+    //A02A1D4F-9C32-4224-A39B-0B3EB400BFD
+    //E9F89E62-1A5D-43D3-9E88-2ED9DC25937D
+    // Delete Relationship should return EventLoopFuture<HTTPStatus>--Just pivot not acronym or category
+    func deleteCategoryHandler(_ req:Request)
+    ->EventLoopFuture<HTTPStatus> {
+        let categoryQuery = Category.find(req.parameters.get("categoryID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+        let acronymQuery = Acronym.find(req.parameters.get("acronymID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+
+        return acronymQuery.and(categoryQuery)
+            .flatMap { acronym, category in
+                return acronym
+                    .$categories
+                    .detach(category, on: req.db) //detach a single model by deleting a pivot
                     .transform(to: .noContent)
             }
     }
