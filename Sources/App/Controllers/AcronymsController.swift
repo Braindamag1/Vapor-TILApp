@@ -12,18 +12,24 @@ struct AcronymsController: RouteCollection {
     // register routes
     func boot(routes: RoutesBuilder) throws {
         let acronymsRoutes = routes.grouped("api", "acronyms")
-        acronymsRoutes.post(use: createHandler)
-        acronymsRoutes.post(":acronymID","categories",":categoryID", use: addCategoryHandler)
+        //acronymsRoutes.post(use: createHandler)
+        acronymsRoutes.post(":acronymID", "categories", ":categoryID", use: addCategoryHandler)
         acronymsRoutes.get(use: getAllHandler)
         acronymsRoutes.get(":acronymID", use: getHandler)
         acronymsRoutes.get(":acronymID", "user", use: getUserHandler)
-        acronymsRoutes.get(":acronymID","categories", use: getCategories)
+        acronymsRoutes.get(":acronymID", "categories", use: getCategories)
         acronymsRoutes.put(":acronymID", use: updateHandler)
         acronymsRoutes.delete(":acronymID", use: deleteHandler)
-        acronymsRoutes.delete(":acronymID","categories",":categoryID", use: deleteCategoryHandler)
+        acronymsRoutes.delete(":acronymID", "categories", ":categoryID", use: deleteCategoryHandler)
         acronymsRoutes.get("search", use: searchHandler)
         acronymsRoutes.get("first", use: getFirstHandler)
         acronymsRoutes.get("sorted", use: sortHandler)
+
+        let basicAuthMiddleware = User.authenticator()
+        let guardAuthMiddleware = User.guardMiddleware()
+        let protected = acronymsRoutes.grouped(basicAuthMiddleware,
+                                               guardAuthMiddleware)
+        protected.post( use: createHandler)
     }
 
     // C- create - POST
@@ -36,9 +42,10 @@ struct AcronymsController: RouteCollection {
                 acronym
             }
     }
+
     // CreateRelationship should return EventLoopFuture<HTTPStatus>
     func addCategoryHandler(_ req: Request)
-    -> EventLoopFuture<HTTPStatus> {
+        -> EventLoopFuture<HTTPStatus> {
         let categoryQuery = Category.find(req.parameters.get("categoryID"), on: req.db)
             .unwrap(or: Abort(.notFound))
         let acronymQuery = Acronym.find(req.parameters.get("acronymID"), on: req.db)
@@ -46,7 +53,7 @@ struct AcronymsController: RouteCollection {
 
         return acronymQuery
             .and(categoryQuery)
-            .flatMap { acronym,category in
+            .flatMap { acronym, category in
                 acronym
                     .$categories
                     .attach(category, on: req.db)
@@ -68,7 +75,7 @@ struct AcronymsController: RouteCollection {
     }
 
     func getUserHandler(_ req: Request)
-    -> EventLoopFuture<User.Public> {
+        -> EventLoopFuture<User.Public> {
         Acronym.find(req.parameters.get("acronymID"), on: req.db)
             .unwrap(or: Abort(.notFound))
             .flatMap { acronym in
@@ -77,19 +84,17 @@ struct AcronymsController: RouteCollection {
                     .convertToPublic()
             }
     }
-    
-    
-    func getCategories(_ req:Request)
-    -> EventLoopFuture<[Category]> {
+
+    func getCategories(_ req: Request)
+        -> EventLoopFuture<[Category]> {
         return Acronym.find(req.parameters.get("acronymID"), on: req.db)
             .unwrap(or: Abort(.notFound))
             .flatMap { acronym in
-                return acronym.$categories
+                acronym.$categories
                     .query(on: req.db)
                     .all()
             }
     }
-    
 
     // U- update - PUT
     func updateHandler(_ req: Request) throws
@@ -118,12 +123,12 @@ struct AcronymsController: RouteCollection {
                     .transform(to: .noContent)
             }
     }
-    
-    //A02A1D4F-9C32-4224-A39B-0B3EB400BFD
-    //E9F89E62-1A5D-43D3-9E88-2ED9DC25937D
+
+    // A02A1D4F-9C32-4224-A39B-0B3EB400BFD
+    // E9F89E62-1A5D-43D3-9E88-2ED9DC25937D
     // Delete Relationship should return EventLoopFuture<HTTPStatus>--Just pivot not acronym or category
-    func deleteCategoryHandler(_ req:Request)
-    ->EventLoopFuture<HTTPStatus> {
+    func deleteCategoryHandler(_ req: Request)
+        -> EventLoopFuture<HTTPStatus> {
         let categoryQuery = Category.find(req.parameters.get("categoryID"), on: req.db)
             .unwrap(or: Abort(.notFound))
         let acronymQuery = Acronym.find(req.parameters.get("acronymID"), on: req.db)
@@ -131,9 +136,9 @@ struct AcronymsController: RouteCollection {
 
         return acronymQuery.and(categoryQuery)
             .flatMap { acronym, category in
-                return acronym
+                acronym
                     .$categories
-                    .detach(category, on: req.db) //detach a single model by deleting a pivot
+                    .detach(category, on: req.db) // detach a single model by deleting a pivot
                     .transform(to: .noContent)
             }
     }

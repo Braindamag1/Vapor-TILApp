@@ -77,3 +77,12 @@ extension EventLoopFuture where Value == Array<User> {
     }
 }
 
+
+extension User: ModelAuthenticatable {
+    static let usernameKey: KeyPath<User, Field<String>> = \User.$username
+    static let passwordHashKey: KeyPath<User, Field<String>> = \User.$password
+    
+    func verify(password: String) throws -> Bool {
+        try Bcrypt.verify(password, created: self.password)
+    }
+}
