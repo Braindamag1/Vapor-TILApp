@@ -13,7 +13,7 @@ struct CreateAcronym:Migration {
             .id()
             .field("short", .string, .required)
             .field("long", .string, .required)
-            .field("userID", .uuid, .required,.references("users", .id))
+            .field("userID", .uuid, .required,.references("users", .id,onDelete: .cascade))
             .create()
     }
     

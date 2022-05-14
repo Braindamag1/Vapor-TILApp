@@ -12,31 +12,37 @@ struct AcronymsController: RouteCollection {
     // register routes
     func boot(routes: RoutesBuilder) throws {
         let acronymsRoutes = routes.grouped("api", "acronyms")
-        //acronymsRoutes.post(use: createHandler)
-        acronymsRoutes.post(":acronymID", "categories", ":categoryID", use: addCategoryHandler)
+        // acronymsRoutes.post(use: createHandler)
+        //acronymsRoutes.post(":acronymID", "categories", ":categoryID", use: addCategoryHandler)
         acronymsRoutes.get(use: getAllHandler)
         acronymsRoutes.get(":acronymID", use: getHandler)
         acronymsRoutes.get(":acronymID", "user", use: getUserHandler)
         acronymsRoutes.get(":acronymID", "categories", use: getCategories)
-        acronymsRoutes.put(":acronymID", use: updateHandler)
-        acronymsRoutes.delete(":acronymID", use: deleteHandler)
-        acronymsRoutes.delete(":acronymID", "categories", ":categoryID", use: deleteCategoryHandler)
+        //acronymsRoutes.put(":acronymID", use: updateHandler)
+        //acronymsRoutes.delete(":acronymID", use: deleteHandler)
+        //acronymsRoutes.delete(":acronymID", "categories", ":categoryID", use: deleteCategoryHandler)
         acronymsRoutes.get("search", use: searchHandler)
         acronymsRoutes.get("first", use: getFirstHandler)
         acronymsRoutes.get("sorted", use: sortHandler)
 
-        let basicAuthMiddleware = User.authenticator()
+        let tokenAuthMiddleware = Token.authenticator()
         let guardAuthMiddleware = User.guardMiddleware()
-        let protected = acronymsRoutes.grouped(basicAuthMiddleware,
-                                               guardAuthMiddleware)
-        protected.post( use: createHandler)
+        let tokenAuthGroup = acronymsRoutes.grouped(tokenAuthMiddleware,
+                                                    guardAuthMiddleware)
+        tokenAuthGroup.post( use: createHandler)
+        tokenAuthGroup.delete(":acronymID", use: deleteHandler)
+        tokenAuthGroup.put("acronymID", use: updateHandler)
+        tokenAuthGroup.post(":acronymID","categories",":categoryID", use: addCategoryHandler)
+        tokenAuthGroup.delete(":acronymID","categories",":categoryID", use: deleteCategoryHandler)
     }
 
     // C- create - POST
     func createHandler(_ req: Request) throws
         -> EventLoopFuture<Acronym> {
         let dto = try req.content.decode(CreateAcronymData.self)
-        let acronym = Acronym(createAcronymData: dto)
+        let user = try req.auth.require(User.self)
+        let userID = try user.requireID()
+        let acronym = Acronym(short: dto.short, long: dto.long, userID: userID )
         return acronym.save(on: req.db)
             .map { _ in
                 acronym
@@ -100,12 +106,14 @@ struct AcronymsController: RouteCollection {
     func updateHandler(_ req: Request) throws
         -> EventLoopFuture<Acronym> {
         let updateDTO = try req.content.decode(CreateAcronymData.self)
+        let user = try req.auth.require(User.self)
+        let userID = try user.requireID()
         return Acronym.find(req.parameters.get("acronymID"), on: req.db)
             .unwrap(or: Abort(.notFound))
             .flatMap { acronym in
                 acronym.short = updateDTO.short
                 acronym.long = updateDTO.long
-                acronym.$user.id = updateDTO.userID
+                acronym.$user.id = userID
                 return acronym.save(on: req.db)
                     .map { _ in
                         acronym
@@ -177,5 +185,4 @@ struct AcronymsController: RouteCollection {
 struct CreateAcronymData: Content { // Content is kind like Codable in swift
     let short: String
     let long: String
-    let userID: UUID
 }

@@ -38,13 +38,6 @@ final class Acronym: Model {
         self.long = long
         self.$user.id = userID
     }
-    
-    init(createAcronymData: CreateAcronymData) {
-        self.short = createAcronymData.short
-        self.long = createAcronymData.long
-        self.$user.id = createAcronymData.userID
-        // id 是在 save的时候自动创建的?
-    }
 }
 
 extension Acronym: Content {

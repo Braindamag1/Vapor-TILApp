@@ -11,10 +11,21 @@ struct UsersController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
        
         let usersRoute = routes.grouped("api", "users")
-        usersRoute.post(use: createHandler)
+        //usersRoute.post(use: createHandler)
         usersRoute.get(use: getAllHandler)
         usersRoute.get(":userID", use: getHandler)
         usersRoute.get(":userID","acronyms", use: getAcronymsHandler)
+        
+        // 1
+        let basicAuthMiddleware = User.authenticator()
+        let basicAuthGroup = usersRoute.grouped(basicAuthMiddleware)
+        // 2
+        basicAuthGroup.post("login", use: loginHandler)
+
+        let tokenAuthMiddleware = Token.authenticator()
+        let guardAuthMiddleware = User.guardMiddleware()
+        let tokenAuthGroup = usersRoute.grouped(tokenAuthMiddleware,guardAuthMiddleware)
+        tokenAuthGroup.post( use: createHandler)
     }
 
     // C- Create POST
@@ -51,5 +62,14 @@ struct UsersController: RouteCollection {
         User.find(req.parameters.get("userID"), on: req.db)
             .unwrap(or: Abort(.notFound))
             .convertToPublic()
+    }
+    
+    func loginHandler(_ req: Request) throws
+    -> EventLoopFuture<Token> {
+        let user = try req.auth.require(User.self)
+        let token = try Token.generate(for: user)
+        return token.save(on: req.db).map { _  in
+            return token
+        }
     }
 }
